@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="application-name" content="Tic Tac Toe" />
+<meta name="description" content="Classic Xs and Os against the computer." />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<title>Tic Tac Toe</title>
+<style>
+  :root{--acc:#38BDF8; --bg:#040b16; --ink:#eaf7ff; --muted:#5f7a8c;}
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%; overflow:hidden}
+  body{
+    background:radial-gradient(120% 90% at 50% 0%, #071a30 0%, var(--bg) 65%);
+    color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; align-items:center; justify-content:center; min-height:100dvh;
+    -webkit-font-smoothing:antialiased; -webkit-user-select:none; user-select:none;
+  }
+  .app{width:min(480px,100vw - 24px); height:100dvh; max-height:780px; display:flex; flex-direction:column; padding:16px 14px 12px}
+  header{flex:0 0 auto; text-align:center}
+  h1{font-size:19px; letter-spacing:.16em; color:var(--acc); text-shadow:0 0 18px rgba(56,189,248,.6)}
+  .tally{display:flex; justify-content:center; gap:10px; margin-top:8px}
+  .pill{font-size:12px; font-weight:800; letter-spacing:.12em; border:1px solid rgba(56,189,248,.35); border-radius:999px; padding:5px 12px; background:rgba(56,189,248,.07)}
+  .pill b{font-size:15px}
+  .px b{color:var(--acc)} .po b{color:#f472b6} .pd b{color:var(--muted)}
+  #status{flex:0 0 auto; text-align:center; font-size:15px; font-weight:800; letter-spacing:.2em; margin:10px 0; min-height:22px; color:var(--acc)}
+  #board{flex:1 1 auto; min-height:0; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:10px; margin-bottom:10px}
+  .cell{
+    border:2px solid rgba(56,189,248,.35); border-radius:20px; background:rgba(56,189,248,.05);
+    font-size:56px; font-weight:900; color:var(--ink); cursor:pointer; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cell.x{color:var(--acc); text-shadow:0 0 20px rgba(56,189,248,.8)}
+  .cell.o{color:#f472b6; text-shadow:0 0 20px rgba(244,114,182,.8)}
+  .cell.win{border-color:var(--acc); box-shadow:0 0 22px rgba(56,189,248,.6); background:rgba(56,189,248,.14)}
+  .hidden{display:none !important}
+  .btn{
+    flex:0 0 auto; width:100%; border:none; border-radius:18px; padding:20px;
+    font-size:20px; font-weight:900; letter-spacing:.16em; cursor:pointer;
+    background:linear-gradient(160deg,#38BDF8,#0369a1); color:#02131d;
+    box-shadow:0 0 26px rgba(56,189,248,.45);
+  }
+  .btn:active{transform:scale(.97)}
+  #resultPanel{flex:0 0 auto; text-align:center; border:1px solid rgba(56,189,248,.4); border-radius:18px; padding:14px 12px; background:rgba(56,189,248,.06)}
+  #resultPanel .t{font-size:22px; font-weight:900; letter-spacing:.16em; color:var(--acc); text-shadow:0 0 18px rgba(56,189,248,.7); margin-bottom:12px}
+  button:focus-visible{outline:3px solid var(--acc); outline-offset:2px}
+</style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>✕ TIC TAC TOE ○</h1>
+      <div class="tally">
+        <div class="pill px">YOU <b id="tx">0</b></div>
+        <div class="pill po">CPU <b id="to">0</b></div>
+        <div class="pill pd">DRAW <b id="td">0</b></div>
+      </div>
+    </header>
+    <div id="status">YOUR MOVE</div>
+    <div id="board"></div>
+    <button id="startBtn" class="btn hidden" data-focusable>▶ NEW ROUND</button>
+  </main>
+<script>
+(function(){
+'use strict';
+function $(id){return document.getElementById(id);}
+/* ---------- audio ---------- */
+var AC=null;
+function beep(freq,ms){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.4,AC.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+(ms/1000));
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime+(ms/1000)+0.02);
+  }catch(e){}
+}
+/* ---------- storage ---------- */
+function loadT(){try{var s=JSON.parse(localStorage.getItem('tic-tac-toe-v1'));return s||{x:0,o:0,d:0};}catch(e){return{x:0,o:0,d:0};}}
+function saveT(t){try{localStorage.setItem('tic-tac-toe-v1',JSON.stringify(t));}catch(e){}}
+var tally=loadT();
+/* ---------- pure logic (test hooks) ---------- */
+var LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function winner(b){
+  for(var i=0;i<LINES.length;i++){var l=LINES[i];
+    if(b[l[0]]&&b[l[0]]===b[l[1]]&&b[l[0]]===b[l[2]])return b[l[0]];}
+  for(var j=0;j<9;j++)if(!b[j])return null;
+  return 'draw';
+}
+function minimax(b,depth,isMax){
+  var w=winner(b);
+  if(w==='O')return 10-depth;
+  if(w==='X')return depth-10;
+  if(w==='draw')return 0;
+  var bs=isMax?-Infinity:Infinity, s, i;
+  for(i=0;i<9;i++){if(b[i])continue;
+    b[i]=isMax?'O':'X'; s=minimax(b,depth+1,!isMax); b[i]='';
+    bs=isMax?Math.max(bs,s):Math.min(bs,s);}
+  return bs;
+}
+function aiMove(b){
+  var best=-1, bs=-Infinity, i, n;
+  var order=[4,0,2,6,8,1,3,5,7]; // center, corners, edges
+  for(n=0;n<order.length;n++){i=order[n]; if(b[i])continue;
+    b[i]='O'; var s=minimax(b,0,false); b[i]='';
+    if(s>bs){bs=s; best=i;}}
+  return best;
+}
+if(typeof window!=='undefined'){window.__logic={winner:winner,aiMove:aiMove,minimax:minimax};}
+/* ---------- ui ---------- */
+var board=[], cells=[], state='idle', starter='X', aiTimer=null;
+function buildBoard(){
+  var g=$('board');
+  for(var i=0;i<9;i++){
+    var b=document.createElement('button');
+    b.className='cell'; b.setAttribute('data-focusable',''); b.setAttribute('data-cell',i);
+    b.setAttribute('aria-label','Cell '+(i+1));
+    (function(ix,btn){btn.addEventListener('click',function(){playerMove(ix);});})(i,b);
+    g.appendChild(b); cells.push(b);
+  }
+}
+function render(){
+  for(var i=0;i<9;i++){
+    cells[i].textContent=board[i]||'';
+    cells[i].classList.toggle('x',board[i]==='X');
+    cells[i].classList.toggle('o',board[i]==='O');
+    cells[i].classList.remove('win');
+  }
+  $('tx').textContent=tally.x; $('to').textContent=tally.o; $('td').textContent=tally.d;
+}
+function setStatus(t){$('status').textContent=t;}
+function newRound(){
+  if(aiTimer){clearTimeout(aiTimer); aiTimer=null;}
+  board=['','','','','','','','',''];
+  $('startBtn').classList.add('hidden');
+  starter=(starter==='X')?'O':'X';
+  state='play'; render();
+  if(starter==='O'){setStatus('CPU STARTS…'); aiTimer=setTimeout(aiTurn,700);}
+  else{setStatus('YOUR MOVE (✕)'); cells[4].focus();}
+}
+function playerMove(i){
+  if(state!=='play'||board[i])return;
+  board[i]='X'; beep(520,120); render();
+  var w=winner(board);
+  if(w){endRound(w); return;}
+  state='ai'; setStatus('CPU THINKING…');
+  aiTimer=setTimeout(aiTurn,550);
+}
+function aiTurn(){
+  aiTimer=null;
+  if(state!=='play'&&state!=='ai')return;
+  var m=aiMove(board);
+  if(m>=0){board[m]='O'; beep(330,140);}
+  render();
+  var w=winner(board);
+  if(w){endRound(w); return;}
+  state='play'; setStatus('YOUR MOVE (✕)');
+}
+function endRound(w){
+  state='over';
+  var msg;
+  if(w==='X'){tally.x++; msg='✕ YOU WIN!'; beep(660,200); setTimeout(function(){beep(880,250);},180);}
+  else if(w==='O'){tally.o++; msg='○ CPU WINS'; beep(220,300);}
+  else{tally.d++; msg='— DRAW —'; beep(440,200);}
+  saveT(tally); render();
+  // highlight winning line
+  for(var i=0;i<LINES.length;i++){var l=LINES[i];
+    if(board[l[0]]&&board[l[0]]===board[l[1]]&&board[l[0]]===board[l[2]]){
+      cells[l[0]].classList.add('win');cells[l[1]].classList.add('win');cells[l[2]].classList.add('win');}}
+  setStatus(msg);
+  var sb=$('startBtn'); sb.textContent='▶ NEW ROUND'; sb.classList.remove('hidden'); sb.focus();
+}
+/* ---------- keyboard ---------- */
+function moveCellFocus(k){
+  var cur=0;
+  for(var i=0;i<9;i++)if(cells[i]===document.activeElement){cur=i;break;}
+  var r=Math.floor(cur/3), c=cur%3;
+  if(k==='ArrowUp')r=(r+2)%3; else if(k==='ArrowDown')r=(r+1)%3;
+  if(k==='ArrowLeft')c=(c+2)%3; else if(k==='ArrowRight')c=(c+1)%3;
+  cells[r*3+c].focus();
+}
+function menuNav(k){
+  var f=Array.prototype.slice.call(document.querySelectorAll('[data-focusable]'))
+    .filter(function(el){return el.offsetParent!==null&&!el.disabled;});
+  if(!f.length)return;
+  var i=f.indexOf(document.activeElement);
+  var d=(k==='ArrowRight'||k==='ArrowDown')?1:-1;
+  f[(i+d+f.length)%f.length].focus();
+}
+document.addEventListener('keydown',function(e){
+  var k=e.key;
+  if(k==='ArrowUp'||k==='ArrowDown'||k==='ArrowLeft'||k==='ArrowRight'||k===' '){e.preventDefault();}
+  if(state==='play'&&k.indexOf('Arrow')===0){moveCellFocus(k);return;}
+  var ae=document.activeElement;
+  if((k==='Enter'||k===' ')&&ae&&ae.tagName==='BUTTON'){e.preventDefault(); ae.click();return;}
+  if(k.indexOf('Arrow')===0){menuNav(k);}
+});
+/* ---------- init ---------- */
+buildBoard(); render();
+$('startBtn').addEventListener('click',newRound);
+newRound();
+})();
+</script>
+</body>
+</html>
