@@ -1,0 +1,1 @@
+{"version":1,"name":"Tic Tac Toe","description":"Classic Xs and Os against the computer.","appearance":{"theme_color":"#38BDF8","icon":{"src":"../icon-mono.png","type":"monochrome"},"icon_background":{"colors":["#38BDF8","#A78BFA","#1E1B4B","#04020F"],"stops":[0.0,0.33,0.66,1.0],"inner_glow_color":"#BAE6FD"}}}
